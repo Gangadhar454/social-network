@@ -2,7 +2,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from user_management.serializers import (
     SignUpSerializer,
-    SignInSerializer
+    SignInSerializer,
+    UserSerializer
 )
 import bcrypt
 from user_management.models import User
@@ -10,6 +11,9 @@ from django.db import IntegrityError
 from datetime import datetime, timedelta
 from django.utils import timezone
 import jwt
+from django.core.paginator import Paginator, EmptyPage
+from utils.auth import validate_token
+
 
 
 # reading public key and privatke for jwt token creation
@@ -104,3 +108,72 @@ class UserSignInView(APIView):
             "status": True,
             "access_token": access_token
         })
+
+
+class UserSearchView(APIView):
+
+    def fetch_queryparams(self, request):
+        search_key = request.GET.get('search_key', None)
+        search_value = request.GET.get('value', None)
+        page = page = request.GET.get('page', 1)
+        if not search_key or not search_value:
+            return Response(
+                {
+                    "status": False,
+                    "message": 'Invalid search params'
+                }
+            )
+        if not (search_key == 'email' or search_key == 'name'):
+            return Response(
+                {
+                    "status": False,
+                    "message": 'Invalid search key'
+                }
+            )
+        return search_key, search_value, page
+
+    @validate_token()
+    def get(self, request):
+        search_key, search_value, page = self.fetch_queryparams(request)
+        if search_key == 'email':
+            try:
+                user = User.objects.get(email__iexact=search_value)
+            except User.DoesNotExist:
+                return Response(
+                {
+                    "status": True,
+                    "message": 'No result found'
+                }
+            )
+            user_details = UserSerializer(user).data
+            return Response(
+                {
+                    "status": True,
+                    "results": user_details
+                }
+            )
+        users = User.objects.filter(name__icontains=search_value)
+        if not users:
+            return Response(
+                {
+                    "status": True,
+                    "message": 'No result found'
+                }
+            )
+        try:
+            paginator = Paginator(users, 10)
+            users = paginator.page(page)
+        except EmptyPage:
+            return Response(
+                {
+                    "status": True,
+                    "message": 'No result found'
+                }
+            )
+        serialized_users = UserSerializer(users, many=True).data
+        return Response(
+            {
+                "status": True,
+                "users": serialized_users
+            }
+        )

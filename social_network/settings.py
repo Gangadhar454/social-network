@@ -26,7 +26,8 @@ SECRET_KEY = 'django-insecure-hpi^#zg=9%r%^iq59-x@wqrxe#1v+^&b@3)n+&6n4g57oq9jug
 DEBUG = True
 
 ALLOWED_HOSTS = []
-
+public_key = open('jwt-key.pub').read()
+private_key = open('jwt-key').read()
 
 # Application definition
 
